@@ -8,6 +8,11 @@ resource "azurerm_resource_group" "web_server_rg" {
   location = var.web_server_location
 }
 
+locals {
+  web_server_name = var.environment == "production" ? "${var.web_server_name}-prod" : "${var.web_server_name}- dev"
+  build_environment = var.environment == "production" ? "production" : "development"
+}
+
 resource "azurerm_virtual_network" "web_server_vnet" {
   name = "${var.resource_prefix}-vnet"
   location = azurerm_resource_group.web_server_rg.location
@@ -68,17 +73,19 @@ resource "azurerm_subnet_network_security_group_association" "web_server_sag" {
 }
 
 resource "azurerm_virtual_machine_scale_set" "web_server" {
+  
   name = "${var.resource_prefix}-scale-set"
   location = var.web_server_location
   resource_group_name = azurerm_resource_group.web_server_rg.name
   upgrade_policy_mode = "manual"
+  
   sku {
-     name     = "Standard_B1s"
+    name     = "Standard_B1s"
     tier     = "Standard"
     capacity = var.web_server_count
   }
 
-  source_profile_image_reference {
+  storage_profile_image_reference {
     publisher = "MicrosoftWindowsServer"
     offer = "WindowsServer"
     sku = "2019-Datacenter"
@@ -94,7 +101,7 @@ resource "azurerm_virtual_machine_scale_set" "web_server" {
   }
 
   os_profile {
-    computer_name_prefix = var.web_server_name  
+    computer_name_prefix = local.web_server_name  
     admin_username = "webserver"
     admin_password = "password@1234$"
   }
@@ -102,16 +109,15 @@ resource "azurerm_virtual_machine_scale_set" "web_server" {
   os_profile_windows_config {
     provision_vm_agent = true
   }
-
+  
   network_profile {
     name    = "web_server_network_profile"
     primary = true
     ip_configuration {
-      name                                   = "var.web_server_name"
+      name                                   = local.web_server_name
       primary                                = true
       subnet_id                              = azurerm_subnet.web_server_subnet["web-server"].id
-      load_balancer_backend_address_pool_ids = [azurerm_lb_backend_address_pool.bpepool.id]
-      load_balancer_inbound_nat_rules_ids    = [azurerm_lb_nat_pool.lbnatpool.id]
+      
     }
   }  
 
